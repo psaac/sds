@@ -10,7 +10,7 @@
 		SelectTrigger
 	} from '$lib/components/ui/select';
 	import { Plus, X } from '@lucide/svelte';
-	import { listPlayerPhotos, type PlayerPhotoMap } from '$lib/types/playerPhotos';
+	import { type PlayerPhotoMap } from '$lib/types/playerPhotos';
 
 	type ManagedPlayer = {
 		id: string;

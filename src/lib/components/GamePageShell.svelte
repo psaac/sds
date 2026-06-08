@@ -1,7 +1,5 @@
 <script lang="ts">
 	import { HeaderNav } from '$lib/components';
-	//   export let backTo: string;
-	//   export let title: string;
 	let { description = '', backTo = '/', title = '', children } = $props();
 </script>
 

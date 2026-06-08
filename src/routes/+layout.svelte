@@ -3,7 +3,7 @@
 	import favicon from '$lib/assets/sdslogo.svg';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Header, Footer } from '$lib/components';
-	import { SDSLogo, Github } from '$lib/assets';
+	import { SDSLogo } from '$lib/assets';
 
 	let { children } = $props();
 	let currentIcon = $state(SDSLogo);

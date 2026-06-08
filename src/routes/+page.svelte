@@ -2,9 +2,7 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Separator } from '$lib/components/ui/separator';
 	import { ChartArea, Calculator, Users } from '@lucide/svelte/icons';
-	// import { Github } from '$lib/components/ui/github';
-	import { Header } from '$lib/components';
-	import { SDSLogo, Github, Cricket } from '$lib/assets';
+	import { playersStore } from '$lib/stores/players.svelte';
 
 	const links = [
 		{
@@ -26,6 +24,12 @@
 			icon: Users
 		}
 	];
+
+	let { data } = $props();
+
+	$effect(() => {
+		playersStore.setPlayers(data.players ?? []);
+	});
 </script>
 
 <div class="mx-auto flex w-full max-w-4xl flex-col gap-8 p-4 text-center sm:p-8">

@@ -1,6 +1,7 @@
 <script lang="ts">
 	// import { getGameDraft } from "@/lib/gameDatabase";
 	import type { SupportedGameType } from '$lib/types/games';
+	// import { playersStore } from '$lib/stores/players.svelte';
 	// import GamePageShell from "@/components/GamePageShell";
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
@@ -17,7 +18,7 @@
 	});
 </script>
 
-<div class="mx-auto flex w-full max-w-2xl flex-col gap-3">
+<div class="mx-auto grid w-full grid-cols-1 gap-3 md:grid-cols-2">
 	<GameCard name="X01" link="x01" icon={X01} hasInProgress={inProgressGames.x01}>
 		{' '}
 		The classic. Choose between 1001 / 701 / 501 / 301{' '}

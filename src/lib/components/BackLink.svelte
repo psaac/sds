@@ -5,6 +5,6 @@
 	let { href = '/' } = $props();
 </script>
 
-<Button variant="outline" size="icon-lg" onclick={() => (window.location.href = href)}>
+<Button variant="outline" size="icon-lg" {href}>
 	<ArrowLeft className="size-4" />
 </Button>

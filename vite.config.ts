@@ -11,13 +11,13 @@ export default defineConfig({
 	define: {
 		__APP_VERSION__: JSON.stringify(packageJson.version ?? '0.0.0')
 	},
-	// server: {
-	// 	proxy: {
-	// 		'/api': {
-	// 			target: 'http://localhost:8787',
-	// 			changeOrigin: true
-	// 		}
-	// 	}
-	// },
+	server: {
+		proxy: {
+			'/api': {
+				target: 'http://localhost:8787',
+				changeOrigin: true
+			}
+		}
+	},
 	plugins: [tailwindcss(), sveltekit()]
 });
