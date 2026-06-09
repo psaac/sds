@@ -30,14 +30,14 @@ export async function listPlayers(options?: { includeInactive?: boolean }): Prom
 
 export async function createPlayer(
 	name: string
-): Promise<{ id: string; name: string; active: boolean }> {
-	return apiRequest<{ id: string; name: string; active: boolean }>('/players', {
+): Promise<{ id: number; name: string; active: boolean }> {
+	return apiRequest<{ id: number; name: string; active: boolean }>('/players', {
 		method: 'POST',
 		body: JSON.stringify({ name })
 	});
 }
 
-export const setPlayerPhoto = async (playerId: string, photoDataUrl: string): Promise<void> => {
+export const setPlayerPhoto = async (playerId: number, photoDataUrl: string): Promise<void> => {
 	return apiRequest<void>(`/players/${playerId}/photo`, {
 		method: 'PUT',
 		body: JSON.stringify({ photoDataUrl })

@@ -26,7 +26,9 @@
 	import { createPlayer, listPlayers, setPlayerPhoto } from '$lib/api';
 	import type { Player } from '$lib/types/player';
 
-	const players = $derived(playersStore.players);
+	// const players = $derived(playersStore.players);
+	let { data } = $props();
+	const players = $derived<Player[]>(data.players);
 	let saving = $state(false);
 	let newPlayerName = $state('');
 	let error = $state<string | null>(null);
@@ -35,60 +37,15 @@
 	let cameraPermissionError = $state<string | null>(null);
 	let capturedPhoto = $state<string | null>(null);
 
-	const handleCreatePlayer = async () => {
-		const name = newPlayerName.trim();
-		if (!name) {
-			return;
-		}
-
-		saving = true;
-		error = null;
-
-		try {
-			await createPlayer(name);
-			newPlayerName = '';
-			// Update store with latest players list after creating a new player
-			playersStore.setPlayers(await listPlayers());
-		} catch {
-			error = 'Could not create player';
-		} finally {
-			saving = false;
-		}
-	};
-
 	const handleOpenCamera = (player: Player) => {
 		cameraTargetPlayer = player;
+		capturedPhoto = player.photoDataUrl ?? null;
 		cameraOpen = true;
 	};
 
 	const handleCloseCamera = () => {
 		cameraOpen = false;
 		cameraTargetPlayer = null;
-	};
-
-	const handleSaveCapturedPhoto = async () => {
-		if (!cameraTargetPlayer || !capturedPhoto) {
-			return;
-		}
-
-		saving = true;
-		error = null;
-
-		try {
-			await setPlayerPhoto(cameraTargetPlayer.id, capturedPhoto);
-			// Update store with photo for the player
-			// setPlayerPhotos((prev) => ({
-			// 	...prev,
-			// 	[cameraTargetPlayer.id]: capturedPhoto
-			// }));
-			// playerPhotosStore.setPhoto(cameraTargetPlayer.id, capturedPhoto);
-			playersStore.updatePlayerPhoto(cameraTargetPlayer.id, capturedPhoto);
-			handleCloseCamera();
-		} catch {
-			error = 'Could not save player photo';
-		} finally {
-			saving = false;
-		}
 	};
 
 	let capture: (() => void) | undefined = $state();
@@ -100,22 +57,16 @@
 			<CardTitle class="text-lg">New player</CardTitle>
 		</CardHeader>
 		<CardContent class="flex flex-col gap-3">
-			<Input
-				id="player-name"
-				//value={newPlayerName}
-				//onchange={(event) => newPlayerName = event.currentTarget.value}
-				placeholder="Ex: Alice"
-				aria-label="New player name"
-				bind:value={newPlayerName}
-			/>
-			<Button
-				disabled={saving || !newPlayerName.trim()}
-				onclick={() => {
-					handleCreatePlayer();
-				}}
-			>
-				Create
-			</Button>
+			<form method="POST" class="flex w-full items-center gap-2" action="?/post">
+				<Input
+					id="player-name"
+					name="name"
+					placeholder="Ex: Alice"
+					aria-label="New player name"
+					bind:value={newPlayerName}
+				/>
+				<Button disabled={saving || !newPlayerName.trim()}>Create</Button>
+			</form>
 		</CardContent>
 	</Card>
 
@@ -143,19 +94,21 @@
 									}}
 									disabled={saving}
 								>
-									{#if player.photoDataUrl}
-										<img
-											src={player.photoDataUrl}
-											alt={player.name}
-											class="h-full w-full object-cover"
-										/>
-									{:else}
-										<div
-											class="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground"
-										>
-											{getInitials(player.name)}
-										</div>
-									{/if}
+									<div class="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted">
+										{#if player.photoDataUrl}
+											<img
+												src={player.photoDataUrl}
+												alt={player.name}
+												class="h-full w-full object-cover"
+											/>
+										{:else}
+											<div
+												class="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground"
+											>
+												{getInitials(player.name)}
+											</div>
+										{/if}
+									</div>
 								</Button>
 
 								<div class="flex flex-col">
@@ -264,9 +217,14 @@
 				>
 					<RotateCw />
 				</Button>
-				<Button disabled={saving} onclick={() => void handleSaveCapturedPhoto()}>
-					<Save />
-				</Button>
+				<form method="POST" action="?/uploadPhoto" class="inline">
+					<Input type="hidden" name="playerId" value={cameraTargetPlayer?.id} />
+					<Input type="hidden" name="photoDataUrl" value={capturedPhoto} />
+
+					<Button type="submit" disabled={saving}>
+						Save <Save />
+					</Button>
+				</form>
 			{:else}
 				<Button onclick={() => capture?.()} disabled={Boolean(cameraPermissionError)}>
 					<Camera />

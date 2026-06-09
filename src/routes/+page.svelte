@@ -27,9 +27,9 @@
 
 	let { data } = $props();
 
-	$effect(() => {
-		playersStore.setPlayers(data.players ?? []);
-	});
+	// $effect(() => {
+	// 	playersStore.setPlayers(data.players ?? []);
+	// });
 </script>
 
 <div class="mx-auto flex w-full max-w-4xl flex-col gap-8 p-4 text-center sm:p-8">

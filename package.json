@@ -28,6 +28,7 @@
 		"@tailwindcss/vite": "^4.2.2",
 		"bits-ui": "^2.18.1",
 		"clsx": "^2.1.1",
+		"drizzle-kit": "^0.31.10",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.5.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
@@ -42,7 +43,10 @@
 		"vite": "^8.0.7"
 	},
 	"dependencies": {
+		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^25.9.2",
+		"better-sqlite3": "^12.10.0",
+		"drizzle-orm": "^0.45.2",
 		"mode-watcher": "^1.1.0"
 	}
 }

@@ -1,7 +1,7 @@
 export type Player = {
-	id: string;
+	id: number;
 	name: string;
-	normalizedName: string;
+	// normalizedName: string;
 	active: boolean;
 	photoDataUrl?: string | null;
 	createdAt: string;

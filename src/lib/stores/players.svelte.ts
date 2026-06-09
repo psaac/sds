@@ -12,10 +12,10 @@ export function createPlayers() {
 		addPlayer: (player: Player) => {
 			players = [...players, player];
 		},
-		removePlayer: (playerId: string) => {
+		removePlayer: (playerId: number) => {
 			players = players.filter((player) => player.id !== playerId);
 		},
-		updatePlayerPhoto: (playerId: string, photoDataUrl: string) => {
+		updatePlayerPhoto: (playerId: number, photoDataUrl: string) => {
 			players = players.map((player) =>
 				player.id === playerId ? { ...player, photoDataUrl } : player
 			);
