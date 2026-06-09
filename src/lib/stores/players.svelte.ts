@@ -15,9 +15,9 @@ export function createPlayers() {
 		removePlayer: (playerId: number) => {
 			players = players.filter((player) => player.id !== playerId);
 		},
-		updatePlayerPhoto: (playerId: number, photoDataUrl: string) => {
+		updatePlayerPhoto: (playerId: number, photoPath: string) => {
 			players = players.map((player) =>
-				player.id === playerId ? { ...player, photoDataUrl } : player
+				player.id === playerId ? { ...player, photoPath } : player
 			);
 		}
 	};

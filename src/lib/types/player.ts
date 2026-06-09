@@ -3,8 +3,16 @@ export type Player = {
 	name: string;
 	// normalizedName: string;
 	active: boolean;
-	photoDataUrl?: string | null;
+	photoPath?: string | null;
 	createdAt: string;
 	updatedAt: string;
 	lastSeenAt: string;
 };
+
+export const getInitials = (playerName: string) =>
+	playerName
+		.split(' ')
+		.map((segment) => segment[0])
+		.join('')
+		.slice(0, 2)
+		.toUpperCase();

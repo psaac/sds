@@ -4,5 +4,6 @@ import BackLink from './BackLink.svelte';
 import HeaderNav from './HeaderNav.svelte';
 import GamePageShell from './GamePageShell.svelte';
 import Webcam from './Webcam.svelte';
+import PlayerManager from './PlayerManager.svelte';
 
-export { Header, Footer, BackLink, HeaderNav, GamePageShell, Webcam };
+export { Header, Footer, BackLink, HeaderNav, GamePageShell, Webcam, PlayerManager };

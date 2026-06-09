@@ -13,6 +13,9 @@
 		type PlayerX01,
 		type SetX01
 	} from '$lib/hooks/useX01Game';
+	import { PlayerManager } from '$lib/components';
+
+	let { data } = $props();
 
 	type GoalOption = 301 | 501 | 701 | 1001;
 
@@ -28,6 +31,7 @@
 		sets: 1
 	};
 	let config = $state<ConfigX01>(defaultConfig);
+	let gamePlayers = $state([]);
 </script>
 
 <div class="resume-banner">
@@ -118,21 +122,23 @@
 </div>
 
 <PlayerManager
-	players={game.players}
-	{availablePlayers}
-	onAddPlayer={(playerName) => {
-		game.setPlayers([
-			...game.players,
-			{
-				score: 0,
-				name: playerName,
-				rounds: [],
-				id: generateUUID()
-			}
-		]);
-	}}
-	onUpdatePlayerName={handleUpdatePlayerNameById}
-	onRemovePlayer={(playerId) => {
-		game.setPlayers(game.players.filter((player) => player.id !== playerId));
-	}}
+	// gamePlayers={game.players}
+	{gamePlayers}
+	activePlayers={data.activePlayers ?? []}
+	// onAddPlayer={(playerName) => {
+	// 	game.setPlayers([
+	// 		...game.players,
+	// 		{
+	// 			score: 0,
+	// 			name: playerName,
+	// 			rounds: [],
+	// 			id: generateUUID()
+	// 		}
+	// 	]);
+	// }}
+	// onUpdatePlayerName={handleUpdatePlayerNameById}
+	// onRemovePlayer={(playerId) => {
+	// 	game.setPlayers(game.players.filter((player) => player.id !== playerId));
+	// }}
+	helperText="Add players to the game. Players must be created in the /players page first."
 />

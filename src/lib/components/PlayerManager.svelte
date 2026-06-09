@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Avatar, Image } from '$lib/components/ui/avatar';
+	import { Avatar, AvatarFallback, Image } from '$lib/components/ui/avatar';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Select,
@@ -10,37 +10,94 @@
 		SelectTrigger
 	} from '$lib/components/ui/select';
 	import { Plus, X } from '@lucide/svelte';
-	import { type PlayerPhotoMap } from '$lib/types/playerPhotos';
+	import { getInitials } from '$lib/types/player';
 
 	type ManagedPlayer = {
 		id: string;
 		name: string;
+		photoPath?: string | null;
 	};
 
 	type PlayerOption = {
-		id: string;
+		id: string | number;
 		name: string;
+		photoPath?: string | null;
 	};
 
-	let { players, availablePlayers, onAddPlayer, onUpdatePlayerName, helperText, onRemovePlayer } =
-		$props();
+	let {
+		gamePlayers = $bindable<ManagedPlayer[]>([]),
+		activePlayers = [],
+		helperText
+	} = $props<{
+		gamePlayers?: ManagedPlayer[];
+		activePlayers?: PlayerOption[];
+		helperText?: string;
+	}>();
 
-	const assignedNames = players.map((player: ManagedPlayer) => player.name);
-	const unassignedPlayers = availablePlayers.filter(
-		(player: PlayerOption) => !assignedNames.includes(player.name)
+	const assignedNames = $derived(gamePlayers.map((player: ManagedPlayer) => player.name));
+	const unassignedPlayers = $derived(
+		activePlayers.filter((player: PlayerOption) => !assignedNames.includes(player.name))
 	);
-	const availablePlayersByName = new Map(
-		availablePlayers.map((player: PlayerOption) => [player.name, player])
+	const availablePlayersByName = $derived(
+		new Map<string, PlayerOption>(
+			activePlayers.map((player: PlayerOption) => [player.name, player] as const)
+		)
 	);
 
-	let playerPhotos = $state<PlayerPhotoMap>({});
-	const getPhotoForName = (name: string) => {
-		const playerId = availablePlayersByName.get(name)?.id;
-		return playerId ? playerPhotos[playerId] : undefined;
+	const getSelectablePlayers = (player: ManagedPlayer) => {
+		return availablePlayersByName.get(player.name)
+			? activePlayers
+			: [
+					{
+						id: `current-${player.id}`,
+						name: player.name,
+						photoPath: player.photoPath ?? null
+					},
+					...activePlayers
+				];
 	};
 
 	const isTakenByOther = (availablePlayer: PlayerOption, player: ManagedPlayer) =>
 		availablePlayer.name !== player.name && assignedNames.includes(availablePlayer.name);
+
+	const addPlayer = () => {
+		if (unassignedPlayers.length === 0) {
+			return;
+		}
+
+		const nextPlayer = unassignedPlayers[0];
+
+		gamePlayers = [
+			...gamePlayers,
+			{
+				id: crypto.randomUUID(),
+				name: nextPlayer.name,
+				photoPath: nextPlayer.photoPath ?? null
+			}
+		];
+	};
+
+	const updatePlayerName = (playerId: string, selectedName: string | undefined) => {
+		if (!selectedName) {
+			return;
+		}
+
+		const selectedPlayer = availablePlayersByName.get(selectedName);
+
+		gamePlayers = gamePlayers.map((player: ManagedPlayer) =>
+			player.id === playerId
+				? {
+						...player,
+						name: selectedName,
+						photoPath: selectedPlayer ? (selectedPlayer.photoPath ?? null) : null
+					}
+				: player
+		);
+	};
+
+	const removePlayer = (playerId: string) => {
+		gamePlayers = gamePlayers.filter((player: ManagedPlayer) => player.id !== playerId);
+	};
 </script>
 
 <div class="mt-2 flex w-full flex-col gap-2">
@@ -51,18 +108,12 @@
 			size="icon-sm"
 			variant="outline"
 			disabled={unassignedPlayers.length === 0}
-			onclick={() => {
-				if (unassignedPlayers.length === 0) {
-					return;
-				}
-
-				onAddPlayer(unassignedPlayers[0].name);
-			}}
+			onclick={addPlayer}
 		>
 			<Plus />
 		</Button>
 	</h2>
-	{#if availablePlayers.length === 0}
+	{#if unassignedPlayers.length === 0}
 		<p class="text-sm text-muted-foreground">
 			No active players found. Create players in /players first.
 		</p>
@@ -70,42 +121,46 @@
 	{#if helperText}
 		<p class="text-sm text-muted-foreground">{helperText}</p>
 	{/if}
-	{#each players as player}
+	{#each gamePlayers as player (player.id)}
 		<div class="inline-flex items-center gap-2">
-			<Avatar aria-label={player.name}>
-				<Image
-					src={getPhotoForName(player.name)}
-					alt={player.name}
-					class="rounded-full"
-					width={32}
-					height={32}
-				/>
-			</Avatar>
+			{#key `${player.name}:${player.photoPath ?? ''}`}
+				<Avatar aria-label={player.name}>
+					<Image
+						src={player.photoPath ?? undefined}
+						alt={player.name}
+						class="rounded-full"
+						width={32}
+						height={32}
+					/>
+					<AvatarFallback>{getInitials(player.name)}</AvatarFallback>
+				</Avatar>
+			{/key}
 			<Select
 				type="single"
-				// value={player.name}
-				// onValueChange={(value) => {
-				// 	onUpdatePlayerName(player.id, value);
-				// }}
-				bind:value={players[index]}
+				value={player.name}
+				onValueChange={(value) => updatePlayerName(player.id, value)}
 			>
 				<SelectTrigger class="w-full max-w-48">
-					<!-- <SelectValue placeholder="Select player">{player.name}</SelectValue> -->
+					<span data-slot="select-value">{player.name}</span>
 				</SelectTrigger>
 				<SelectContent>
 					<SelectGroup>
 						<SelectLabel>Choose a player</SelectLabel>
-						{#each availablePlayers as availablePlayer, index}
-							<SelectItem value={availablePlayer.name} disabled={isTakenByOther}>
+						{#each getSelectablePlayers(player) as availablePlayer (availablePlayer.id)}
+							<SelectItem
+								value={availablePlayer.name}
+								disabled={isTakenByOther(availablePlayer, player)}
+							>
 								<span class="inline-flex items-center gap-2">
 									<Avatar>
 										<Image
-											src={playerPhotos[availablePlayer.id]}
+											src={availablePlayer.photoPath ?? undefined}
 											alt={availablePlayer.name}
 											class="rounded-full"
 											width={24}
 											height={24}
 										/>
+										<AvatarFallback>{getInitials(availablePlayer.name)}</AvatarFallback>
 									</Avatar>
 									<span>{availablePlayer.name}</span>
 								</span>
@@ -114,14 +169,11 @@
 					</SelectGroup>
 				</SelectContent>
 			</Select>
-			<!-- {renderPlayerExtras?.(player)} -->
 			<Button
 				aria-label="Remove Player"
 				size="icon-sm"
 				variant="ghost"
-				onclick={() => {
-					onRemovePlayer(player.id);
-				}}
+				onclick={() => removePlayer(player.id)}
 			>
 				<X />
 			</Button>

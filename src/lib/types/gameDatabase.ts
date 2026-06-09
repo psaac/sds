@@ -5,7 +5,7 @@ export type PlayerRecord = {
 	name: string;
 	normalizedName: string;
 	active: boolean;
-	photoDataUrl?: string | null;
+	photoPath?: string | null;
 	createdAt: string;
 	updatedAt: string;
 	lastSeenAt: string;

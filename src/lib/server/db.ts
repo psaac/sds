@@ -1,10 +1,7 @@
-import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { env } from '$env/dynamic/private';
 
-import Database from 'better-sqlite3';
-
-// const sqlite = new Database('../../data/sds.db');
-export const db = drizzle(process.env.DB_FILE_NAME ?? '');
-// export const db: BetterSQLite3Database = drizzle(sqlite);
+export const db = drizzle(env.DB_FILE_NAME ?? '');
 
 migrate(db, { migrationsFolder: './drizzle' });

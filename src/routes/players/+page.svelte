@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -19,19 +20,13 @@
 		UserRoundCheck,
 		UserRoundMinus
 	} from '@lucide/svelte';
-	import { getInitials } from '$lib/utils';
 	import { Webcam } from '$lib/components';
-	import { playersStore } from '$lib/stores/players.svelte';
-	// import { playerPhotosStore } from '$lib/stores/photos.svelte';
-	import { createPlayer, listPlayers, setPlayerPhoto } from '$lib/api';
-	import type { Player } from '$lib/types/player';
+	import { getInitials, type Player } from '$lib/types/player';
 
-	// const players = $derived(playersStore.players);
 	let { data } = $props();
 	const players = $derived<Player[]>(data.players);
 	let saving = $state(false);
 	let newPlayerName = $state('');
-	let error = $state<string | null>(null);
 	let cameraTargetPlayer = $state<Player | null>(null);
 	let cameraOpen = $state(false);
 	let cameraPermissionError = $state<string | null>(null);
@@ -39,17 +34,59 @@
 
 	const handleOpenCamera = (player: Player) => {
 		cameraTargetPlayer = player;
-		capturedPhoto = player.photoDataUrl ?? null;
+		capturedPhoto = player.photoPath ?? null;
 		cameraOpen = true;
 	};
 
-	const handleCloseCamera = () => {
+	const closeCamera = () => {
 		cameraOpen = false;
 		cameraTargetPlayer = null;
 	};
 
+	const handleEnhancedSubmit = () => {
+		saving = true;
+
+		return async ({ update }: { update: () => Promise<void> }) => {
+			await update();
+			saving = false;
+		};
+	};
+
+	const handleEnhancedCameraSubmit = () => {
+		saving = true;
+		closeCamera();
+
+		return async ({ update }: { update: () => Promise<void> }) => {
+			await update();
+			saving = false;
+			capturedPhoto = null;
+		};
+	};
+
+	const handleEnhancedCreateSubmit = () => {
+		saving = true;
+
+		return async ({ update }: { update: () => Promise<void> }) => {
+			await update();
+			saving = false;
+			newPlayerName = '';
+		};
+	};
+
 	let capture: (() => void) | undefined = $state();
 </script>
+
+{#if saving}
+	<div class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+		<div
+			class="flex items-center gap-2 rounded-md border bg-background px-4 py-3 text-sm shadow-lg"
+		>
+			<RotateCw class="h-5 w-5 animate-spin" />
+			<span>Saving...</span>
+		</div>
+	</div>
+	<div class="fixed inset-0 z-40 bg-background/40 backdrop-blur-[1px]"></div>
+{/if}
 
 <div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
 	<Card>
@@ -57,7 +94,12 @@
 			<CardTitle class="text-lg">New player</CardTitle>
 		</CardHeader>
 		<CardContent class="flex flex-col gap-3">
-			<form method="POST" class="flex w-full items-center gap-2" action="?/post">
+			<form
+				method="POST"
+				class="flex w-full items-center gap-2"
+				action="?/post"
+				use:enhance={handleEnhancedCreateSubmit}
+			>
 				<Input
 					id="player-name"
 					name="name"
@@ -95,9 +137,9 @@
 									disabled={saving}
 								>
 									<div class="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted">
-										{#if player.photoDataUrl}
+										{#if player.photoPath}
 											<img
-												src={player.photoDataUrl}
+												src={player.photoPath}
 												alt={player.name}
 												class="h-full w-full object-cover"
 											/>
@@ -120,36 +162,54 @@
 							</div>
 
 							<div class="flex items-center gap-2">
-								<input
-									id={`player-photo-${player.id}`}
-									type="file"
-									accept="image/*"
-									class="hidden"
-									disabled={saving}
-								/>
-								<Button
-									// asChild
-									variant="outline"
-									disabled={saving}
-									size="icon-lg"
+								<form
+									method="POST"
+									action="?/uploadPhoto"
+									enctype="multipart/form-data"
+									use:enhance={handleEnhancedSubmit}
 								>
-									<label for={`player-photo-${player.id}`}>
-										<Import />
-									</label>
-								</Button>
-								<Button
-									variant={player.active ? 'destructive' : 'secondary'}
-									disabled={saving}
-									onclick={() => {
-										//void handleTogglePlayer(player, !player.active);
-									}}
+									<Input type="hidden" name="playerId" value={player.id} />
+									<Input
+										id={`player-photo-${player.id}`}
+										name="photo"
+										type="file"
+										accept="image/*"
+										class="hidden"
+										disabled={saving}
+										onchange={(event: Event) => {
+											const input = event.currentTarget as HTMLInputElement;
+											if (input.files?.length) {
+												input.form?.requestSubmit();
+											}
+										}}
+									/>
+									<Button type="button" variant="outline" disabled={saving} size="icon-lg">
+										<label for={`player-photo-${player.id}`}>
+											<Import />
+										</label>
+									</Button>
+								</form>
+								<form
+									method="POST"
+									action="?/togglePlayer"
+									class="inline"
+									use:enhance={handleEnhancedSubmit}
 								>
-									{#if player.active}
-										<UserRoundMinus />
-									{:else}
-										<UserRoundCheck />
-									{/if}
-								</Button>
+									<Input type="hidden" name="playerId" value={player.id} />
+									<Input type="hidden" name="active" value={player.active} />
+									<Button
+										variant={player.active ? 'destructive' : 'secondary'}
+										disabled={saving}
+										size="icon-lg"
+										type="submit"
+									>
+										{#if player.active}
+											<UserRoundMinus />
+										{:else}
+											<UserRoundCheck />
+										{/if}
+									</Button>
+								</form>
 							</div>
 						</div>
 					{/each}
@@ -163,14 +223,14 @@
 	open={cameraOpen}
 	onOpenChange={(open) => {
 		if (!open) {
-			handleCloseCamera();
+			closeCamera();
 		}
 	}}
 >
 	<DialogContent class="max-w-xl">
 		<DialogHeader>
 			<DialogTitle>
-				{cameraTargetPlayer ? `Webcam for ${cameraTargetPlayer.id}` : 'Webcam'}
+				{cameraTargetPlayer ? `Webcam for ${cameraTargetPlayer.name}` : 'Webcam'}
 			</DialogTitle>
 			<DialogDescription>
 				Capture a profile photo directly from your device camera.
@@ -196,17 +256,19 @@
 		{/if}
 
 		<DialogFooter>
-			<!-- {#if cameraTargetPlayer?.id && playerPhotos[cameraTargetPlayer.id]} -->
-			{#if cameraTargetPlayer?.id}
-				<Button
-					variant="destructive"
-					disabled={saving}
-					onclick={() => {
-						//void handleRemoveCurrentPlayerPhoto();
-					}}
+			{#if capturedPhoto}
+				<form
+					method="POST"
+					action="?/deletePhoto"
+					class="inline"
+					use:enhance={handleEnhancedCameraSubmit}
 				>
-					<Trash2 />
-				</Button>
+					<Input type="hidden" name="playerId" value={cameraTargetPlayer?.id} />
+					<Button type="submit" variant="destructive" disabled={saving}>
+						Delete
+						<Trash2 />
+					</Button>
+				</form>
 			{/if}
 			{#if capturedPhoto}
 				<Button
@@ -217,7 +279,12 @@
 				>
 					<RotateCw />
 				</Button>
-				<form method="POST" action="?/uploadPhoto" class="inline">
+				<form
+					method="POST"
+					action="?/uploadPhoto"
+					class="inline"
+					use:enhance={handleEnhancedCameraSubmit}
+				>
 					<Input type="hidden" name="playerId" value={cameraTargetPlayer?.id} />
 					<Input type="hidden" name="photoDataUrl" value={capturedPhoto} />
 
