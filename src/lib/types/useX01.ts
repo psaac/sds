@@ -1,5 +1,4 @@
 import { generateUUID } from '$lib/uuid';
-// import { useRef, useState } from 'react';
 
 export type PlayerX01 = {
 	name: string;
@@ -44,7 +43,7 @@ export type SetX01 = {
 
 export type GameState = ReturnType<typeof useX01Game>;
 
-type UndoSnapshotX01 = {
+export type UndoSnapshotX01 = {
 	players: PlayerX01[];
 	currentTurn: CurrentTurnX01;
 	currentScore: number;
@@ -57,13 +56,42 @@ type UndoSnapshotX01 = {
 	sets: SetX01[];
 };
 
-export function useX01Game(initialPlayers: PlayerX01[], config: ConfigX01) {
+export type GoalOption = 301 | 501 | 701 | 1001;
+
+export const GOAL_OPTIONS = [301, 501, 701, 1001] as const satisfies readonly GoalOption[];
+
+export const isSelectedGoal = (goal: GoalOption, config: ConfigX01) => goal === config.goal;
+
+export const defaultConfigX01: ConfigX01 = {
+	goal: 501,
+	doubleout: false,
+	doublein: false,
+	legs: 1,
+	sets: 1
+};
+
+export const initialPlayers = [
+	{
+		name: 'Player 1',
+		rounds: [],
+		id: generateUUID(),
+		score: 0
+	},
+	{
+		name: 'Player 2',
+		rounds: [],
+		id: generateUUID(),
+		score: 0
+	}
+];
+
+export function useX01Game(initialPlayers: PlayerX01[], getConfig: () => ConfigX01) {
 	let players = $state<PlayerX01[]>(initialPlayers);
 	let currentTurn = $state<CurrentTurnX01>({
 		player: initialPlayers[0],
 		throws: []
 	});
-	let currentScore = $state(config.goal);
+	let currentScore = $state(getConfig().goal);
 	let gameOver = $state(false);
 	let legEnded = $state(false);
 	let setEnded = $state(false);
@@ -78,8 +106,7 @@ export function useX01Game(initialPlayers: PlayerX01[], config: ConfigX01) {
 		legs: []
 	});
 	let sets = $state<SetX01[]>([]);
-	//const undoSnapshotRef = useRef<UndoSnapshotX01 | null>(null);
-	// TODO : find a way to implement undo without useRef, maybe with a state that we reset to null after use
+	let undoSnapshotRef: UndoSnapshotX01 | null = null;
 
 	const activePlayer = players.find((p) => p.id === currentTurn.player.id);
 
@@ -98,15 +125,14 @@ export function useX01Game(initialPlayers: PlayerX01[], config: ConfigX01) {
 		});
 
 	function captureUndoSnapshot() {
-		// undoSnapshotRef.current = createUndoSnapshot();
+		undoSnapshotRef = createUndoSnapshot();
 	}
 
 	function handleNextPlayer() {
-		// undoSnapshotRef.current = createUndoSnapshot();
+		captureUndoSnapshot();
 
 		busted = false;
 		const finishedPlayer = players.find((p) => p.id === currentTurn.player.id);
-
 		players = players.map((player) =>
 			player.id === currentTurn.player.id
 				? {
@@ -152,7 +178,7 @@ export function useX01Game(initialPlayers: PlayerX01[], config: ConfigX01) {
 		const newCurrentTurnThrows = currentTurn.throws.slice(0, -1);
 
 		const scoreToRestore =
-			currentScore === config.goal ? 0 : lastThrow.multiplier * lastThrow.score;
+			currentScore === getConfig().goal ? 0 : lastThrow.multiplier * lastThrow.score;
 		const newCurrentScore = currentScore + scoreToRestore;
 
 		currentScore = newCurrentScore;
@@ -164,21 +190,23 @@ export function useX01Game(initialPlayers: PlayerX01[], config: ConfigX01) {
 	}
 
 	function handleUndoLastThrow() {
-		// const snapshot = undoSnapshotRef.current;
-		// if (!snapshot) {
-		// 	return;
-		// }
-		// players = snapshot.players;
-		// currentTurn = snapshot.currentTurn;
-		// currentScore = snapshot.currentScore;
-		// gameOver = snapshot.gameOver;
-		// legEnded = snapshot.legEnded;
-		// setEnded = snapshot.setEnded;
-		// busted = snapshot.busted;
-		// currentLeg = snapshot.currentLeg;
-		// currentSet = snapshot.currentSet;
-		// sets = snapshot.sets;
-		// undoSnapshotRef.current = null;
+		const snapshot = undoSnapshotRef;
+
+		if (!snapshot) {
+			return;
+		}
+
+		players = snapshot.players;
+		currentTurn = snapshot.currentTurn;
+		currentScore = snapshot.currentScore;
+		gameOver = snapshot.gameOver;
+		legEnded = snapshot.legEnded;
+		setEnded = snapshot.setEnded;
+		busted = snapshot.busted;
+		currentLeg = snapshot.currentLeg;
+		currentSet = snapshot.currentSet;
+		sets = snapshot.sets;
+		undoSnapshotRef = null;
 	}
 
 	const handleNewLeg = () => {
@@ -193,12 +221,12 @@ export function useX01Game(initialPlayers: PlayerX01[], config: ConfigX01) {
 			winnerId: null,
 			history: []
 		};
-		players = players.map((o) => ({ ...o, score: config.goal, rounds: [] }));
+		players = players.map((o) => ({ ...o, score: getConfig().goal, rounds: [] }));
 		currentTurn = {
 			player: players[0],
 			throws: []
 		};
-		currentScore = config.goal;
+		currentScore = getConfig().goal;
 	};
 
 	const handleNewSet = () => {
@@ -209,7 +237,8 @@ export function useX01Game(initialPlayers: PlayerX01[], config: ConfigX01) {
 			player: players[0],
 			throws: []
 		};
-		currentScore = config.goal;
+		currentScore = getConfig().goal;
+		players = players.map((o) => ({ ...o, score: getConfig().goal, rounds: [] }));
 	};
 
 	return {

@@ -5,35 +5,186 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import { Field, FieldLabel } from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import { generateUUID } from '$lib/uuid';
 	import {
-		useX01Game,
+		// useX01Game,
+		defaultConfigX01,
+		initialPlayers,
 		type ConfigX01,
 		type CurrentTurnX01,
 		type LegX01,
 		type PlayerX01,
-		type SetX01
-	} from '$lib/hooks/useX01Game';
+		type SetX01,
+		type UndoSnapshotX01,
+		GOAL_OPTIONS,
+		isSelectedGoal
+	} from '$lib/types/useX01';
 	import { PlayerManager } from '$lib/components';
 
 	let { data } = $props();
 
-	type GoalOption = 301 | 501 | 701 | 1001;
+	let config = $state(defaultConfigX01);
 
-	const GOAL_OPTIONS = [301, 501, 701, 1001] as const satisfies readonly GoalOption[];
+	// Game definition
+	let players = $state<PlayerX01[]>(initialPlayers);
+	let currentTurn = $state<CurrentTurnX01>({
+		player: initialPlayers[0],
+		throws: []
+	});
+	let currentScore = $derived(config.goal);
+	let gameOver = $state(false);
+	let legEnded = $state(false);
+	let setEnded = $state(false);
+	let busted = $state(false);
+	let currentLeg = $state<LegX01>({
+		id: generateUUID(),
+		winnerId: null,
+		history: []
+	});
+	let currentSet = $state<SetX01>({
+		winnerId: null,
+		legs: []
+	});
+	let sets = $state<SetX01[]>([]);
+	let undoSnapshotRef: UndoSnapshotX01 | null = null;
 
-	const isSelectedGoal = (goal: GoalOption, config: ConfigX01) => goal === config.goal;
+	const activePlayer = $derived(players.find((p) => p.id === currentTurn.player.id));
 
-	const defaultConfig: ConfigX01 = {
-		goal: 501,
-		doubleout: false,
-		doublein: false,
-		legs: 1,
-		sets: 1
+	const createUndoSnapshot = (): UndoSnapshotX01 =>
+		structuredClone({
+			players,
+			currentTurn,
+			currentScore,
+			gameOver,
+			legEnded,
+			setEnded,
+			busted,
+			currentLeg,
+			currentSet,
+			sets
+		});
+
+	function captureUndoSnapshot() {
+		undoSnapshotRef = createUndoSnapshot();
+	}
+
+	function handleNextPlayer() {
+		captureUndoSnapshot();
+
+		busted = false;
+		const finishedPlayer = players.find((p) => p.id === currentTurn.player.id);
+		players = players.map((player) =>
+			player.id === currentTurn.player.id
+				? {
+						...player,
+						score: busted ? (finishedPlayer?.score ?? 0) : currentScore
+					}
+				: player
+		);
+
+		const nextIndex =
+			players.indexOf(players.find((p) => p.id === currentTurn.player.id) as PlayerX01) + 1;
+		const nextPlayer = nextIndex > players.length - 1 ? players[0] : players[nextIndex];
+		currentLeg = {
+			...currentLeg,
+			history: [
+				...currentLeg.history,
+				{
+					playerId: finishedPlayer?.id || '',
+					throws: currentTurn.throws
+				}
+			]
+		};
+		currentTurn = {
+			player: nextPlayer,
+			throws: []
+		};
+		currentScore =
+			nextPlayer.id === currentTurn.player.id && !busted ? currentScore : nextPlayer.score;
+	}
+
+	function handleDeleteLast() {
+		if (currentTurn.throws.length === 0) {
+			handleUndoLastThrow();
+			return;
+		}
+
+		const lastThrow = currentTurn.throws.at(-1);
+
+		if (!lastThrow) {
+			return;
+		}
+
+		const newCurrentTurnThrows = currentTurn.throws.slice(0, -1);
+
+		const scoreToRestore =
+			currentScore === config.goal ? 0 : lastThrow.multiplier * lastThrow.score;
+		const newCurrentScore = currentScore + scoreToRestore;
+
+		currentScore = newCurrentScore;
+		currentTurn = { ...currentTurn, throws: newCurrentTurnThrows };
+
+		if (busted) {
+			busted = false;
+		}
+	}
+
+	function handleUndoLastThrow() {
+		const snapshot = undoSnapshotRef;
+
+		if (!snapshot) {
+			return;
+		}
+
+		players = snapshot.players;
+		currentTurn = snapshot.currentTurn;
+		currentScore = snapshot.currentScore;
+		gameOver = snapshot.gameOver;
+		legEnded = snapshot.legEnded;
+		setEnded = snapshot.setEnded;
+		busted = snapshot.busted;
+		currentLeg = snapshot.currentLeg;
+		currentSet = snapshot.currentSet;
+		sets = snapshot.sets;
+		undoSnapshotRef = null;
+	}
+
+	const handleNewLeg = () => {
+		if (!legEnded) return;
+		legEnded = false;
+		currentSet = {
+			...currentSet,
+			legs: [...currentSet.legs, currentLeg]
+		};
+		currentLeg = {
+			id: generateUUID(),
+			winnerId: null,
+			history: []
+		};
+		players = players.map((o) => ({ ...o, score: config.goal, rounds: [] }));
+		currentTurn = {
+			player: players[0],
+			throws: []
+		};
+		currentScore = config.goal;
 	};
-	let config = $state<ConfigX01>(defaultConfig);
-	let gamePlayers = $state([]);
+
+	const handleNewSet = () => {
+		setEnded = false;
+		currentSet = { winnerId: null, legs: [] };
+		currentLeg = { id: generateUUID(), winnerId: null, history: [] };
+		currentTurn = {
+			player: players[0],
+			throws: []
+		};
+		currentScore = config.goal;
+		players = players.map((o) => ({ ...o, score: config.goal, rounds: [] }));
+	};
+
+	// let game = $state(useX01Game(initialPlayers, () => config));
 </script>
 
+<!--
 <div class="resume-banner">
 	<p class="text-sm">A game in progress has been detected.</p>
 	<div class="flex gap-2">
@@ -58,6 +209,7 @@
 		</Button>
 	</div>
 </div>
+-->
 
 <div class="flex w-full flex-col gap-2">
 	<Label for="starting-score" class="text-left text-xl font-semibold">Starting Score:</Label>
@@ -122,8 +274,8 @@
 </div>
 
 <PlayerManager
-	// gamePlayers={game.players}
-	{gamePlayers}
+	gamePlayers={players}
+	// {game.players}
 	activePlayers={data.activePlayers ?? []}
 	// onAddPlayer={(playerName) => {
 	// 	game.setPlayers([
