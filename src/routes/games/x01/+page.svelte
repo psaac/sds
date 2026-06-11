@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Button } from '$lib/components/ui/button';
 	import { ButtonGroup } from '$lib/components/ui/button-group';
 	import { Label } from '$lib/components/ui/label';
@@ -17,9 +19,11 @@
 		type SetX01,
 		type UndoSnapshotX01,
 		GOAL_OPTIONS,
-		isSelectedGoal
+		isSelectedGoal,
+		type X01Draft
 	} from '$lib/types/useX01';
 	import { PlayerManager } from '$lib/components';
+	import { Target } from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -48,7 +52,40 @@
 	let sets = $state<SetX01[]>([]);
 	let undoSnapshotRef: UndoSnapshotX01 | null = null;
 
-	const activePlayer = $derived(players.find((p) => p.id === currentTurn.player.id));
+	// const activePlayer = $derived(players.find((p) => p.id === currentTurn.player.id));
+
+	let gameStartedAtRef = new Date().toISOString();
+	let hasSavedGameRef = false;
+	let ready = $state(false);
+	let showResumeBanner = $state(false);
+	let manualScorer = $state(false);
+	const draft = $derived(data.draft);
+
+	$effect(() => {
+		if (draft && draft?.ready) {
+			gameStartedAtRef = draft.startedAt;
+			config = draft.config;
+			manualScorer = draft.manualScorer;
+			players = draft.players;
+			currentLeg = draft.currentLeg;
+			currentSet = draft.currentSet;
+			sets = draft.sets;
+			currentScore = draft.currentScore;
+			busted = draft.busted;
+
+			const currentPlayerFromDraft =
+				draft.players.find((p) => p.id === draft!.currentTurn.player.id) ?? draft.players[0];
+
+			if (currentPlayerFromDraft) {
+				currentTurn = {
+					player: currentPlayerFromDraft,
+					throws: draft.currentTurn.throws
+				};
+			}
+
+			showResumeBanner = true;
+		}
+	});
 
 	const createUndoSnapshot = (): UndoSnapshotX01 =>
 		structuredClone({
@@ -181,116 +218,165 @@
 		players = players.map((o) => ({ ...o, score: config.goal, rounds: [] }));
 	};
 
-	// let game = $state(useX01Game(initialPlayers, () => config));
+	const handleReady: SubmitFunction = ({ formData }) => {
+		const startedAt = new Date().toISOString();
+		gameStartedAtRef = startedAt;
+		hasSavedGameRef = false;
+		ready = true;
+		currentScore = config.goal;
+		const readyPlayers = players.map((p) => ({
+			...p,
+			score: config.goal
+		}));
+		players = readyPlayers;
+		currentTurn = {
+			player: readyPlayers[0],
+			throws: []
+		};
+
+		console.log('Ready to start game with players:', players);
+
+		const gameDraft: X01Draft = {
+			startedAt,
+			ready: true,
+			manualScorer,
+			config,
+			players: readyPlayers,
+			currentTurn: {
+				player: readyPlayers[0],
+				throws: []
+			},
+			currentScore: config.goal,
+			busted: false,
+			currentLeg,
+			currentSet,
+			sets
+		};
+
+		formData.set('gameDraft', JSON.stringify(gameDraft));
+	};
 </script>
 
-<!--
-<div class="resume-banner">
-	<p class="text-sm">A game in progress has been detected.</p>
-	<div class="flex gap-2">
-		<Button
-			class="border border-accent"
-			onclick={() => {
-				// setReady(true);
-				// setShowResumeBanner(false);
-			}}
-		>
-			Resume
-		</Button>
-		<Button
-			variant="secondary"
-			onclick={() => {
-				// void deleteGameDraft('x01');
-				// setShowResumeBanner(false);
-				window.location.reload();
-			}}
-		>
-			New Game
-		</Button>
-	</div>
-</div>
--->
-
-<div class="flex w-full flex-col gap-2">
-	<Label for="starting-score" class="text-left text-xl font-semibold">Starting Score:</Label>
-	<ButtonGroup id="starting-score" class="mx-auto">
-		{#each GOAL_OPTIONS as goal}
-			<Button
-				// key={goal}
-				variant={isSelectedGoal(goal, config) ? 'default' : 'outline'}
-				onclick={() => (config = { ...config, goal })}
-			>
-				{goal}
-			</Button>
-		{/each}
-	</ButtonGroup>
-</div>
-
-<div class="flex w-full flex-col gap-2 md:flex-row">
-	<div class="flex w-full flex-col gap-2 md:w-1/2 md:pr-4">
-		<h2 class="inline-flex items-center gap-2 text-xl font-semibold">Double Ins & Outs</h2>
-		<div class="inline-flex w-full justify-between md:pt-2 md:pb-1">
-			<Label class="text-left" for="double-in">Double In:</Label>
-			<Switch
-				id="double-in"
-				onCheckedChange={(checked) => (config = { ...config, doublein: checked })}
-				checked={config.doublein}
-			/>
+{#if !ready}
+	{#if showResumeBanner}
+		<div class="resume-banner">
+			<p class="text-sm">A game in progress has been detected.</p>
+			<div class="flex gap-2">
+				<Button
+					class="border border-accent"
+					onclick={() => {
+						// ready = true;
+						// setShowResumeBanner(false);
+					}}
+				>
+					Resume
+				</Button>
+				<Button
+					variant="secondary"
+					onclick={() => {
+						// void deleteGameDraft('x01');
+						// setShowResumeBanner(false);
+						window.location.reload();
+					}}
+				>
+					New Game
+				</Button>
+			</div>
 		</div>
-		<div class="inline-flex w-full justify-between md:pt-2 md:pb-1">
-			<Label class="text-left" for="double-out">Double Out:</Label>
-			<Switch
-				id="double-out"
-				onCheckedChange={(checked) => (config = { ...config, doubleout: checked })}
-				checked={config.doubleout}
-			/>
-		</div>
+	{/if}
+
+	<div class="flex w-full flex-col gap-2">
+		<Label for="starting-score" class="text-left text-xl font-semibold">Starting Score:</Label>
+		<ButtonGroup id="starting-score" class="mx-auto">
+			{#each GOAL_OPTIONS as goal}
+				<Button
+					// key={goal}
+					variant={isSelectedGoal(goal, config) ? 'default' : 'outline'}
+					onclick={() => (config = { ...config, goal })}
+				>
+					{goal}
+				</Button>
+			{/each}
+		</ButtonGroup>
 	</div>
-	<div class="flex w-full flex-col gap-2 md:w-1/2 md:pl-4">
-		<h2 class="text-xl font-semibold">Legs & Sets</h2>
-		<div class="inline-flex w-full justify-between">
-			<Label for="input-legs" class="text-left">Legs</Label>
-			<Field class="w-16 text-center">
-				<Input
-					id="input-legs"
-					type="number"
-					onchange={(e) => (config = { ...config, legs: Number(e.currentTarget.value) })}
-					value={config.legs}
+
+	<div class="flex w-full flex-col gap-2 md:flex-row">
+		<div class="flex w-full flex-col gap-2 md:w-1/2 md:pr-4">
+			<h2 class="inline-flex items-center gap-2 text-xl font-semibold">Double Ins & Outs</h2>
+			<div class="inline-flex w-full justify-between md:pt-2 md:pb-1">
+				<Label class="text-left" for="double-in">Double In:</Label>
+				<Switch
+					id="double-in"
+					onCheckedChange={(checked) => (config = { ...config, doublein: checked })}
+					checked={config.doublein}
 				/>
-			</Field>
-		</div>
-		<div class="inline-flex w-full justify-between">
-			<Label for="input-sets" class="text-left">Sets</Label>
-			<Field class="w-16 text-center">
-				<Input
-					id="input-sets"
-					type="number"
-					onchange={(e) => (config = { ...config, sets: Number(e.currentTarget.value) })}
-					value={config.sets}
+			</div>
+			<div class="inline-flex w-full justify-between md:pt-2 md:pb-1">
+				<Label class="text-left" for="double-out">Double Out:</Label>
+				<Switch
+					id="double-out"
+					onCheckedChange={(checked) => (config = { ...config, doubleout: checked })}
+					checked={config.doubleout}
 				/>
-			</Field>
+			</div>
+		</div>
+		<div class="flex w-full flex-col gap-2 md:w-1/2 md:pl-4">
+			<h2 class="text-xl font-semibold">Legs & Sets</h2>
+			<div class="inline-flex w-full justify-between">
+				<Label for="input-legs" class="text-left">Legs</Label>
+				<Field class="w-16 text-center">
+					<Input
+						id="input-legs"
+						type="number"
+						onchange={(e) => (config = { ...config, legs: Number(e.currentTarget.value) })}
+						value={config.legs}
+					/>
+				</Field>
+			</div>
+			<div class="inline-flex w-full justify-between">
+				<Label for="input-sets" class="text-left">Sets</Label>
+				<Field class="w-16 text-center">
+					<Input
+						id="input-sets"
+						type="number"
+						onchange={(e) => (config = { ...config, sets: Number(e.currentTarget.value) })}
+						value={config.sets}
+					/>
+				</Field>
+			</div>
 		</div>
 	</div>
-</div>
 
-<PlayerManager
-	gamePlayers={players}
-	// {game.players}
-	activePlayers={data.activePlayers ?? []}
-	// onAddPlayer={(playerName) => {
-	// 	game.setPlayers([
-	// 		...game.players,
-	// 		{
-	// 			score: 0,
-	// 			name: playerName,
-	// 			rounds: [],
-	// 			id: generateUUID()
-	// 		}
-	// 	]);
-	// }}
-	// onUpdatePlayerName={handleUpdatePlayerNameById}
-	// onRemovePlayer={(playerId) => {
-	// 	game.setPlayers(game.players.filter((player) => player.id !== playerId));
-	// }}
-	helperText="Add players to the game. Players must be created in the /players page first."
-/>
+	<PlayerManager
+		bind:gamePlayers={players}
+		// {game.players}
+		activePlayers={data.activePlayers ?? []}
+		// onAddPlayer={(playerName) => {
+		// 	game.setPlayers([
+		// 		...game.players,
+		// 		{
+		// 			score: 0,
+		// 			name: playerName,
+		// 			rounds: [],
+		// 			id: generateUUID()
+		// 		}
+		// 	]);
+		// }}
+		// onUpdatePlayerName={handleUpdatePlayerNameById}
+		// onRemovePlayer={(playerId) => {
+		// 	game.setPlayers(game.players.filter((player) => player.id !== playerId));
+		// }}
+		helperText="Add players to the game. Players must be created in the /players page first."
+	/>
+
+	<form action="?/startGame" method="POST" class="w-full" use:enhance={handleReady}>
+		<Button
+			disabled={players.length < 2 || data.activePlayers.length === 0}
+			class="mt-8 w-full p-8 text-xl"
+			type="submit"
+		>
+			<Target class="size-8" />
+			Play
+		</Button>
+	</form>
+{/if}

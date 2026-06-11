@@ -60,6 +60,20 @@ export type GoalOption = 301 | 501 | 701 | 1001;
 
 export const GOAL_OPTIONS = [301, 501, 701, 1001] as const satisfies readonly GoalOption[];
 
+export type X01Draft = {
+	startedAt: string;
+	ready: boolean;
+	manualScorer: boolean;
+	config: ConfigX01;
+	players: PlayerX01[];
+	currentTurn: CurrentTurnX01;
+	currentScore: number;
+	busted: boolean;
+	currentLeg: LegX01;
+	currentSet: SetX01;
+	sets: SetX01[];
+};
+
 export const isSelectedGoal = (goal: GoalOption, config: ConfigX01) => goal === config.goal;
 
 export const defaultConfigX01: ConfigX01 = {

@@ -8,6 +8,7 @@ import {
 	type GameDraft,
 	type NewGameDraft
 } from './schema';
+import { type SupportedGameType } from '$lib/types/game';
 
 export function addGame(game: NewGame): Game[] {
 	return db.insert(games_table).values(game).returning().all();
@@ -23,7 +24,7 @@ export function getAllGames(): Game[] {
 }
 
 // Drafts
-export function saveGameDraft(gameType: string, payload: any): GameDraft {
+export function saveGameDraft(gameType: SupportedGameType, payload: any): GameDraft {
 	const payload_json = JSON.stringify(payload);
 	const existingDraft = db
 		.select()
@@ -44,15 +45,19 @@ export function saveGameDraft(gameType: string, payload: any): GameDraft {
 	}
 }
 
-export function getGameDraft(gameType: string): GameDraft | undefined {
+export function getGameDraft<TPayload>(gameType: SupportedGameType): TPayload | undefined {
 	const drafts = db
 		.select()
 		.from(games_drafts_table)
 		.where(eq(games_drafts_table.game_type, gameType))
 		.all();
-	return drafts[0];
+	if (drafts.length === 0) {
+		return undefined;
+	}
+
+	return JSON.parse(drafts[0].payload_json) as TPayload;
 }
 
-export function deleteGameDraft(gameType: string): void {
+export function deleteGameDraft(gameType: SupportedGameType): void {
 	db.delete(games_drafts_table).where(eq(games_drafts_table.game_type, gameType)).run();
 }

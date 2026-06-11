@@ -66,14 +66,22 @@
 		}
 
 		const nextPlayer = unassignedPlayers[0];
+		const playerTemplate = gamePlayers[0];
 
 		gamePlayers = [
 			...gamePlayers,
-			{
-				id: crypto.randomUUID(),
-				name: nextPlayer.name,
-				photoPath: nextPlayer.photoPath ?? null
-			}
+			playerTemplate
+				? {
+						...playerTemplate,
+						id: crypto.randomUUID(),
+						name: nextPlayer.name,
+						photoPath: nextPlayer.photoPath ?? null
+					}
+				: {
+						id: crypto.randomUUID(),
+						name: nextPlayer.name,
+						photoPath: nextPlayer.photoPath ?? null
+					}
 		];
 	};
 

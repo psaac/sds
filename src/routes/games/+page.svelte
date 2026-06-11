@@ -1,6 +1,6 @@
 <script lang="ts">
 	// import { getGameDraft } from "@/lib/gameDatabase";
-	import type { SupportedGameType } from '$lib/types/games';
+	import type { SupportedGameType } from '$lib/types/game';
 	// import { playersStore } from '$lib/stores/players.svelte';
 	// import GamePageShell from "@/components/GamePageShell";
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
