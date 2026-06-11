@@ -2,7 +2,6 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Separator } from '$lib/components/ui/separator';
 	import { ChartArea, Calculator, Users } from '@lucide/svelte/icons';
-	import { playersStore } from '$lib/stores/players.svelte';
 
 	const links = [
 		{

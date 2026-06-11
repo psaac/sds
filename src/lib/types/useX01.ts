@@ -1,14 +1,15 @@
 import { generateUUID } from '$lib/uuid';
+import type { Player } from './player';
 
 export type PlayerX01 = {
 	name: string;
 	rounds: [ThrowX01, ThrowX01, ThrowX01][];
-	id: string;
+	id: number;
 	score: number;
 };
 
 export type TurnX01 = {
-	playerId: string;
+	playerId: number;
 	throws: ThrowX01[];
 };
 
@@ -32,12 +33,12 @@ export type CurrentTurnX01 = {
 
 export type LegX01 = {
 	id: string;
-	winnerId: string | null;
+	winnerId: number | null;
 	history: TurnX01[];
 };
 
 export type SetX01 = {
-	winnerId: string | null;
+	winnerId: number | null;
 	legs: LegX01[];
 };
 
@@ -84,20 +85,23 @@ export const defaultConfigX01: ConfigX01 = {
 	sets: 1
 };
 
-export const initialPlayers = [
+export const getInitialPlayers = (activePlayers: Array<Player>): PlayerX01[] => [
 	{
-		name: 'Player 1',
+		name: activePlayers[0]?.name ?? '',
 		rounds: [],
-		id: generateUUID(),
+		id: activePlayers[0]?.id ?? generateUUID(),
 		score: 0
 	},
 	{
-		name: 'Player 2',
+		name: activePlayers[1]?.name ?? '',
 		rounds: [],
-		id: generateUUID(),
+		id: activePlayers[1]?.id ?? generateUUID(),
 		score: 0
 	}
 ];
+
+export const hasInvalidPlayers = (players: PlayerX01[]) =>
+	players.length < 2 || players.some((player) => player.name.trim() === '');
 
 export function useX01Game(initialPlayers: PlayerX01[], getConfig: () => ConfigX01) {
 	let players = $state<PlayerX01[]>(initialPlayers);
@@ -164,7 +168,7 @@ export function useX01Game(initialPlayers: PlayerX01[], getConfig: () => ConfigX
 			history: [
 				...currentLeg.history,
 				{
-					playerId: finishedPlayer?.id || '',
+					playerId: finishedPlayer?.id || 0,
 					throws: currentTurn.throws
 				}
 			]

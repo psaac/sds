@@ -15,8 +15,13 @@ export function getAllPlayers(): Player[] {
 	return db.select().from(players_table).all();
 }
 
-export const getAllActivePlayers = () => {
-	return db.select().from(players_table).where(eq(players_table.active, true)).all();
+export const getAllActivePlayers = (): Player[] => {
+	return db
+		.select()
+		.from(players_table)
+		.where(eq(players_table.active, true))
+		.all()
+		.sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt));
 };
 
 export function updatePlayer(id: number, updates: Partial<Player>) {

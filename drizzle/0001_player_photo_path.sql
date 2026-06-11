@@ -1,1 +1,0 @@
-ALTER TABLE `players` ADD `photoPath` text;

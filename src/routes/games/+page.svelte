@@ -1,14 +1,7 @@
 <script lang="ts">
-	// import { getGameDraft } from "@/lib/gameDatabase";
 	import type { SupportedGameType } from '$lib/types/game';
-	// import { playersStore } from '$lib/stores/players.svelte';
-	// import GamePageShell from "@/components/GamePageShell";
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import { Button } from '$lib/components/ui/button';
 	import { Cricket, Killer, X01, Lantern } from '$lib/assets';
 	import { GameCard } from '$lib/components/ui/game';
-	// import { SDSLogo } from '$lib/assets';
-	// import { Separator } from '$lib/components/ui/separator';
 
 	let inProgressGames = $state<Record<SupportedGameType, boolean>>({
 		x01: false,
