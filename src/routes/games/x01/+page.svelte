@@ -265,22 +265,15 @@
 				<Button
 					class="border border-accent"
 					onclick={() => {
-						// ready = true;
-						// setShowResumeBanner(false);
+						ready = true;
+						showResumeBanner = false;
 					}}
 				>
 					Resume
 				</Button>
-				<Button
-					variant="secondary"
-					onclick={() => {
-						// void deleteGameDraft('x01');
-						// setShowResumeBanner(false);
-						window.location.reload();
-					}}
-				>
-					New Game
-				</Button>
+				<form action="?/deleteGameDraft" method="POST" class="w-full">
+					<Button variant="secondary" type="submit">New Game</Button>
+				</form>
 			</div>
 		</div>
 	{/if}
@@ -349,23 +342,7 @@
 
 	<PlayerManager
 		bind:gamePlayers={players}
-		// {game.players}
 		activePlayers={data.activePlayers ?? []}
-		// onAddPlayer={(playerName) => {
-		// 	game.setPlayers([
-		// 		...game.players,
-		// 		{
-		// 			score: 0,
-		// 			name: playerName,
-		// 			rounds: [],
-		// 			id: generateUUID()
-		// 		}
-		// 	]);
-		// }}
-		// onUpdatePlayerName={handleUpdatePlayerNameById}
-		// onRemovePlayer={(playerId) => {
-		// 	game.setPlayers(game.players.filter((player) => player.id !== playerId));
-		// }}
 		helperText="Add players to the game. Players must be created in the /players page first."
 	/>
 

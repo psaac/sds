@@ -33,5 +33,8 @@ export const actions = {
 		// });
 
 		saveGameDraft('x01', gameDraft satisfies X01Draft);
+	},
+	deleteGameDraft: async () => {
+		saveGameDraft('x01', null);
 	}
 };
