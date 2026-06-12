@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { tick } from 'svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Button } from '$lib/components/ui/button';
 	import { ButtonGroup } from '$lib/components/ui/button-group';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
-	import { Field, FieldLabel } from '$lib/components/ui/field';
+	import { Field } from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import { generateUUID } from '$lib/uuid';
 	import {
@@ -23,6 +24,8 @@
 	} from '$lib/types/useX01';
 	import { PlayerManager } from '$lib/components';
 	import { Calculator, Target } from '@lucide/svelte';
+	import ManualScorer from '$lib/components/ManualScorer.svelte';
+	import Divider from '$lib/components/Divider.svelte';
 
 	let { data } = $props();
 
@@ -31,10 +34,11 @@
 	// Game definition
 	let players = $derived<PlayerX01[]>(getInitialPlayers(data.activePlayers ?? []));
 	let currentTurn = $derived<CurrentTurnX01>({
-		player: getInitialPlayers(data.activePlayers ?? [])[0],
+		playerId: getInitialPlayers(data.activePlayers ?? [])[0].id,
+		score: getInitialPlayers(data.activePlayers ?? [])[0].score,
 		throws: []
 	});
-	let currentScore = $derived(config.goal);
+	let currentScore = $state(0);
 	let gameOver = $state(false);
 	let legEnded = $state(false);
 	let setEnded = $state(false);
@@ -51,13 +55,18 @@
 	let sets = $state<SetX01[]>([]);
 	let undoSnapshotRef: UndoSnapshotX01 | null = null;
 
-	const currentPlayer = $derived(data.activePlayers.find((p) => p.id === currentTurn.player.id));
+	const currentPlayer = $derived(players.find((p) => p.id === currentTurn.playerId));
+	const currentPlayerPhoto = $derived(
+		data.activePlayers.find((p) => p.id === currentTurn.playerId)?.photoPath
+	);
 
 	let gameStartedAtRef = new Date().toISOString();
 	let hasSavedGameRef = false;
 	let ready = $state(false);
 	let showResumeBanner = $state(false);
 	let manualScorer = $state(false);
+	let saveDraftFormRef: HTMLFormElement | null = null;
+	let saveDraftPayload = $state('');
 	const draft = $derived(data.draft);
 
 	$effect(() => {
@@ -69,57 +78,52 @@
 			currentLeg = draft.currentLeg;
 			currentSet = draft.currentSet;
 			sets = draft.sets;
-			currentScore = draft.currentScore;
-			busted = draft.busted;
 
 			const currentPlayerFromDraft =
-				draft.players.find((p) => p.id === draft!.currentTurn.player.id) ?? draft.players[0];
+				draft.players.find((p) => p.id === draft!.currentTurn.playerId) ?? draft.players[0];
 
 			if (currentPlayerFromDraft) {
 				currentTurn = {
-					player: currentPlayerFromDraft,
+					playerId: currentPlayerFromDraft.id,
+					score: currentPlayerFromDraft.score,
 					throws: draft.currentTurn.throws
 				};
+				currentScore = currentPlayerFromDraft.score;
 			}
 
 			showResumeBanner = true;
 		}
 	});
 
-	const createUndoSnapshot = (): UndoSnapshotX01 =>
-		structuredClone({
-			players,
-			currentTurn,
-			currentScore,
-			gameOver,
-			legEnded,
-			setEnded,
-			busted,
-			currentLeg,
-			currentSet,
-			sets
-		});
-
-	function captureUndoSnapshot() {
-		undoSnapshotRef = createUndoSnapshot();
-	}
+	// function captureUndoSnapshot() {
+	// 	undoSnapshotRef = {
+	// 		players: players.map((p) => ({ ...p })),
+	// 		currentTurn: { ...currentTurn, throws: [...currentTurn.throws] },
+	// 		currentScore,
+	// 		gameOver,
+	// 		legEnded,
+	// 		setEnded,
+	// 		busted,
+	// 		currentLeg: { ...currentLeg },
+	// 		currentSet: { ...currentSet },
+	// 		sets: JSON.parse(JSON.stringify(sets))
+	// 	};
+	// }
 
 	function handleNextPlayer() {
-		captureUndoSnapshot();
-
-		busted = false;
-		const finishedPlayer = players.find((p) => p.id === currentTurn.player.id);
-		players = players.map((player) =>
-			player.id === currentTurn.player.id
-				? {
-						...player,
-						score: busted ? (finishedPlayer?.score ?? 0) : currentScore
-					}
-				: player
-		);
+		// captureUndoSnapshot();
+		const finishedPlayer = players.find((p) => p.id === currentTurn.playerId);
+		// players = players.map((player) =>
+		// 	player.id === currentTurn.playerId
+		// 		? {
+		// 				...player,
+		// 				score: busted ? (finishedPlayer?.score ?? 0) : currentScore
+		// 			}
+		// 		: player
+		// );
 
 		const nextIndex =
-			players.indexOf(players.find((p) => p.id === currentTurn.player.id) as PlayerX01) + 1;
+			players.indexOf(players.find((p) => p.id === currentTurn.playerId) as PlayerX01) + 1;
 		const nextPlayer = nextIndex > players.length - 1 ? players[0] : players[nextIndex];
 		currentLeg = {
 			...currentLeg,
@@ -132,40 +136,17 @@
 			]
 		};
 		currentTurn = {
-			player: nextPlayer,
+			playerId: nextPlayer.id,
+			score: nextPlayer.score,
 			throws: []
 		};
-		currentScore =
-			nextPlayer.id === currentTurn.player.id && !busted ? currentScore : nextPlayer.score;
+		currentScore = nextPlayer.score;
+		saveGameDraft();
+		busted = false;
 	}
 
-	function handleDeleteLast() {
-		if (currentTurn.throws.length === 0) {
-			handleUndoLastThrow();
-			return;
-		}
-
-		const lastThrow = currentTurn.throws.at(-1);
-
-		if (!lastThrow) {
-			return;
-		}
-
-		const newCurrentTurnThrows = currentTurn.throws.slice(0, -1);
-
-		const scoreToRestore =
-			currentScore === config.goal ? 0 : lastThrow.multiplier * lastThrow.score;
-		const newCurrentScore = currentScore + scoreToRestore;
-
-		currentScore = newCurrentScore;
-		currentTurn = { ...currentTurn, throws: newCurrentTurnThrows };
-
-		if (busted) {
-			busted = false;
-		}
-	}
-
-	function handleUndoLastThrow() {
+	// Handle previous player
+	const handleUndoPreviousThrows = () => {
 		const snapshot = undoSnapshotRef;
 
 		if (!snapshot) {
@@ -183,7 +164,149 @@
 		currentSet = snapshot.currentSet;
 		sets = snapshot.sets;
 		undoSnapshotRef = null;
-	}
+	};
+
+	const onThrow = (score: number, multiplier: 1 | 2 | 3) => {
+		if (currentTurn.throws.length >= 3 || busted || currentPlayer?.score === 0) {
+			return;
+		}
+
+		// captureUndoSnapshot();
+		const totalPoints = score * multiplier;
+
+		if (multiplier !== 2 && config.doublein && currentScore === config.goal) {
+			return;
+		}
+
+		currentScore = currentScore - totalPoints;
+
+		if (currentScore < 0) busted = true;
+		else if (config.doubleout && currentScore === 1) {
+			busted = true;
+		} else {
+			// Update current turn with the new throw
+			currentTurn = {
+				...currentTurn,
+				throws: [...currentTurn.throws, { score, multiplier }],
+				playerId: currentTurn.playerId,
+				score: currentScore
+			};
+
+			// update current player score + current turn score also
+			players = players.map((player) =>
+				player.id === currentTurn.playerId ? { ...player, score: currentScore } : player
+			);
+
+			if (currentScore - totalPoints === 0) {
+				if (config.doubleout && multiplier !== 2) return (busted = true);
+				const winnerId = currentTurn.playerId;
+
+				players = players.map((player) =>
+					player.id === currentTurn.playerId ? { ...player, score: 0 } : player
+				);
+
+				const finishedLeg = {
+					...currentLeg,
+					winnerId,
+					history: [
+						...currentLeg.history,
+						{
+							throws: [...currentTurn.throws, { score, multiplier }],
+							playerId: currentTurn.playerId
+						}
+					]
+				};
+
+				const legsWonByPlayer = currentSet.legs.filter((l) => l.winnerId === winnerId).length + 1;
+				const setWon = legsWonByPlayer === config.legs;
+
+				if (setWon) {
+					const finishedSet: SetX01 = {
+						winnerId,
+						legs: [...currentSet.legs, finishedLeg]
+					};
+
+					const setsWonByPlayer = sets.filter((s) => s.winnerId === winnerId).length + 1;
+					const gameWon = setsWonByPlayer === config.sets;
+
+					if (gameWon) {
+						sets = [...sets, finishedSet];
+						currentSet = finishedSet;
+						currentLeg = finishedLeg;
+						gameOver = true;
+						return;
+					}
+
+					sets = [...sets, finishedSet];
+					currentSet = finishedSet;
+					currentLeg = finishedLeg;
+					setEnded = true;
+					return;
+				}
+
+				currentLeg = finishedLeg;
+				legEnded = true;
+			}
+		}
+
+		if (currentTurn.throws.length >= 3 || busted || currentPlayer?.score === 0) {
+			const timeoutId = setTimeout(() => {
+				handleNextPlayer();
+				clearTimeout(timeoutId);
+			}, 1200);
+
+			// return () => {
+			// 	clearTimeout(timeoutId);
+			// };
+		} else {
+			saveGameDraft();
+		}
+	};
+
+	const onMiss = () => {
+		if (currentTurn.throws.length >= 3 || busted || currentPlayer?.score === 0) {
+			return;
+		}
+
+		// captureUndoSnapshot();
+		currentTurn = {
+			...currentTurn,
+			throws: [...currentTurn.throws, { score: 0, multiplier: 1 }]
+		};
+	};
+
+	const onUndo = () => {
+		if (currentTurn.throws.length === 0) {
+			handleUndoPreviousThrows();
+			return;
+		}
+
+		const lastThrow = currentTurn.throws.at(-1);
+
+		if (!lastThrow) {
+			return;
+		}
+
+		const newCurrentTurnThrows = currentTurn.throws.slice(0, -1);
+
+		const scoreToRestore =
+			currentScore === config.goal ? 0 : lastThrow.multiplier * lastThrow.score;
+		const newCurrentScore = currentScore + scoreToRestore;
+		currentScore = newCurrentScore;
+		currentTurn = {
+			playerId: currentTurn.playerId,
+			score: newCurrentScore,
+			throws: newCurrentTurnThrows
+		};
+		// update current player score
+		players = players.map((player) =>
+			player.id === currentTurn.playerId ? { ...player, score: newCurrentScore } : player
+		);
+
+		busted = false;
+
+		saveGameDraft();
+	};
 
 	const handleNewLeg = () => {
 		if (!legEnded) return;
@@ -199,7 +322,8 @@
 		};
 		players = players.map((o) => ({ ...o, score: config.goal, rounds: [] }));
 		currentTurn = {
-			player: players[0],
+			playerId: players[0].id,
+			score: players[0].score,
 			throws: []
 		};
 		currentScore = config.goal;
@@ -210,12 +334,29 @@
 		currentSet = { winnerId: null, legs: [] };
 		currentLeg = { id: generateUUID(), winnerId: null, history: [] };
 		currentTurn = {
-			player: players[0],
+			playerId: players[0].id,
+			score: players[0].score,
 			throws: []
 		};
 		currentScore = config.goal;
 		players = players.map((o) => ({ ...o, score: config.goal, rounds: [] }));
 	};
+
+	const getGameDraft = (
+		start: string,
+		players: PlayerX01[],
+		currentTurn: CurrentTurnX01
+	): X01Draft => ({
+		startedAt: start,
+		ready: true,
+		manualScorer,
+		config,
+		players,
+		currentTurn,
+		currentLeg,
+		currentSet,
+		sets
+	});
 
 	const handleReady: SubmitFunction = ({ formData }) => {
 		const startedAt = new Date().toISOString();
@@ -229,30 +370,31 @@
 		}));
 		players = readyPlayers;
 		currentTurn = {
-			player: readyPlayers[0],
+			playerId: readyPlayers[0].id,
+			score: readyPlayers[0].score,
 			throws: []
 		};
 
-		const gameDraft: X01Draft = {
-			startedAt,
-			ready: true,
-			manualScorer,
-			config,
-			players: readyPlayers,
-			currentTurn: {
-				player: readyPlayers[0],
-				throws: []
-			},
-			currentScore: config.goal,
-			busted: false,
-			currentLeg,
-			currentSet,
-			sets
-		};
+		formData.set('gameDraft', JSON.stringify(getGameDraft(startedAt, readyPlayers, currentTurn)));
+	};
 
-		formData.set('gameDraft', JSON.stringify(gameDraft));
+	const saveGameDraft = async () => {
+		saveDraftPayload = JSON.stringify(getGameDraft(gameStartedAtRef, players, currentTurn));
+		await tick();
+		saveDraftFormRef?.requestSubmit();
 	};
 </script>
+
+<form
+	bind:this={saveDraftFormRef}
+	action="?/saveGameDraft"
+	method="POST"
+	class="hidden"
+	aria-hidden="true"
+	use:enhance
+>
+	<input type="hidden" name="gameDraft" value={saveDraftPayload} />
+</form>
 
 {#if !ready}
 	{#if showResumeBanner}
@@ -344,203 +486,74 @@
 			</Button>
 		</form>
 	{/if}
-	{:else}
-		<!-- Game in progress UI goes here -->
-		 <div class="flex flex-col px-2 gap-2 md:m-auto md:h-full">
-      <div class="flex-row flex md:flex-row justify-between md:w-2/3 md:m-auto md:px-4">
-        <div class="turn-strip flex-row flex md:flex-row justify-between w-full md:m-auto">
-          <div class="flex items-center gap-2">
-            <!-- Hide if leg is 1 and set is 1 -->
-            {#if config.legs > 1 || config.sets > 1}
-              <p>
-                Leg {currentSet.legs.length + 1}/{config.legs}
-                <br />
-                Set {sets.length + 1}/{config.sets}
-              </p>
-            {/if}
-          </div>
+{:else}
+	<!-- Game in progress UI goes here -->
+	<div class="flex w-full flex-col gap-2 px-2 md:m-auto md:h-full">
+		<div class="flex flex-row justify-between md:m-auto md:w-2/3 md:flex-row md:px-4">
+			<div class="turn-strip flex w-full flex-row justify-between md:m-auto md:flex-row">
+				<div class="flex items-center gap-2">
+					<!-- Hide if leg is 1 and set is 1 -->
+					{#if config.legs > 1 || config.sets > 1}
+						<p>
+							Leg {currentSet.legs.length + 1}/{config.legs}
+							<br />
+							Set {sets.length + 1}/{config.sets}
+						</p>
+					{/if}
+				</div>
 
-          <div class="flex items-center gap-2">
-            <h2 class="w-fit text-2xl font-bold text-center inline-flex gap-2 items-center">
-              {#if currentPlayer?.photoPath}
-                <img
-                  src={currentPlayer.photoPath}
-                  alt={currentPlayer?.name}
-                  class="h-12 w-12 rounded-full object-cover border border-border"
-                />
-              {/if}
-              {currentPlayer?.name}
-            </h2>
-          </div>
-          <div class="flex items-center gap-2">
-            <Button
-              variant="default"
-              class="border border-accent h-10 w-10"
-              onClick={() => setManualScorer(!manualScorer)}
-            >
-              {#if manualScorer}
-                <Target class="size-5" />
-              {:else}
-                <Calculator class="size-5" />
-              {/if}
-            </Button>
-          </div>
-        </div>
-      </div>
+				<div class="flex items-center gap-2">
+					<h2 class="inline-flex w-fit items-center gap-2 text-center text-2xl font-bold">
+						{#if currentPlayerPhoto}
+							<img
+								src={currentPlayerPhoto}
+								alt={currentPlayer?.name}
+								class="h-12 w-12 rounded-full border border-border object-cover"
+							/>
+						{/if}
+						{currentPlayer?.name}
+					</h2>
+				</div>
+				<div class="flex items-center gap-2">
+					<Button
+						variant="default"
+						class="h-10 w-10 border border-accent"
+						onclick={() => (manualScorer = !manualScorer)}
+					>
+						{#if manualScorer}
+							<Target class="size-5" />
+						{:else}
+							<Calculator class="size-5" />
+						{/if}
+					</Button>
+				</div>
+			</div>
+		</div>
 
-      {#if manualScorer}
-        <ManualScorer
-          headerLabel="Score:"
-          headerValue={currentScore}
-          throws={currentTurn.throws}
-          values={Array.from({ length: 20 }, (_, index) => ({
-            score: index + 1,
-            label: String(index + 1),
-          }))}
-          onThrow={(score, multiplier) => {
-            if (
-              currentTurn.throws.length >= 3 ||
-              busted ||
-              currentPlayer?.score === 0
-            ) {
-              return;
-            }
-
-            captureUndoSnapshot();
-            const totalPoints = score * multiplier;
-
-            setCurrentTurn((prev) => ({
-              ...prev,
-              throws: [...prev.throws, { score, multiplier }],
-            }));
-
-            if (
-              multiplier !== 2 &&
-              config.doublein &&
-              currentScore === config.goal
-            ) {
-              return;
-            }
-
-            currentScore = currentScore - totalPoints;
-            if (currentScore < 0)
-              return busted = true;
-            if (config.doubleout && currentScore === 1) {
-              return busted = true;
-            }
-
-            if (currentScore - totalPoints === 0) {
-              if (config.doubleout && multiplier !== 2)
-                return busted = true;
-              const winnerId = currentTurn.player.id;
-
-              players = (prevPlayers) =>
-                prevPlayers.map((player) =>
-                  player.id === currentTurn.player.id
-                    ? { ...player, score: 0 }
-                    : player,
-                );
-
-              const finishedLeg = {
-                ...currentLeg,
-                winnerId,
-                history: [
-                  ...currentLeg.history,
-                  {
-                    throws: [...currentTurn.throws, { score, multiplier }],
-                    playerId: currentTurn.player.id,
-                  },
-                ],
-              };
-
-              const legsWonByPlayer =
-                currentSet.legs.filter((l) => l.winnerId === winnerId)
-                  .length + 1;
-              const setWon = legsWonByPlayer === config.legs;
-
-              if (setWon) {
-                const finishedSet: SetX01 = {
-                  winnerId,
-                  legs: [...currentSet.legs, finishedLeg],
-                };
-
-                const setsWonByPlayer =
-                  sets.filter((s) => s.winnerId === winnerId).length + 1;
-                const gameWon = setsWonByPlayer === config.sets;
-
-                if (gameWon) {
-                  sets = [...sets, finishedSet];
-                  currentSet = finishedSet;
-                  currentLeg = finishedLeg;
-                  gameOver = true;
-                  return;
-                }
-
-                sets = [...sets, finishedSet];
-                currentSet = finishedSet;
-                currentLeg = finishedLeg;
-                setEnded = true;
-                return;
-              }
-
-              currentLeg = finishedLeg;
-              legEnded = true;
-            }
-          }}
-          onMiss={() => {
-            if (
-              currentTurn.throws.length >= 3 ||
-              busted ||
-              currentPlayer?.score === 0
-            ) {
-              return;
-            }
-
-            captureUndoSnapshot();
-            currentTurn = {
-              ...currentTurn,
-              throws: [...currentTurn.throws, { score: 0, multiplier: 1 }],
-            };
-          
-          onUndo={handleDeleteLast}
-          isError={busted}
-          throwSelectionLocked={
-            busted ||
-            currentTurn.throws.length >= 3 ||
-            currentPlayer?.score === 0
-          }
-          hint="Next player is automatic after 3 darts or a bust. Use Undo to go back."
-          renderThrowValue={(throwValue) =>
-            throwValue.score * throwValue.multiplier
-          }
-          statsSection={
-            <GameStatSection
-              sets={sets}
-              currentLeg={currentLeg}
-              players={players}
-              currentSet={currentSet}
-              config={config}
-              currentTurn={currentTurn}
-            />
-          }
-        />
-      {:else}
-        <X01BoardScorer
-          game={game}
-          config={config}
-          statsSection={
-            <GameStatSection
-              sets={sets}
-              currentLeg={currentLeg}
-              players={players}
-              currentSet={currentSet}
-              config={config}
-              currentTurn={currentTurn}
-            />
-          }
-        />
-      {/if}
-      <!-- 
+		{#if manualScorer}
+			<ManualScorer
+				headerLabel="Score:"
+				{currentScore}
+				throws={currentTurn.throws}
+				values={Array.from({ length: 20 }, (_, index) => ({
+					score: index + 1,
+					label: String(index + 1)
+				}))}
+				{onThrow}
+				{onMiss}
+				{onUndo}
+				isError={busted}
+				throwSelectionLocked={busted ||
+					currentTurn.throws.length >= 3 ||
+					currentPlayer?.score === 0}
+				renderThrowValue={(throwValue) => throwValue.score * throwValue.multiplier}
+			/>
+		{:else}
+			<!-- <X01BoardScorer {game} {config} /> -->
+		{/if}
+		<Divider class="my-2" />
+		<!-- <GameStatSection {sets} {currentLeg} {players} {currentSet} {config} {currentTurn} /> -->
+		<!-- 
 		<LegOverDialog
         open={
           legDialogOpen && legEnded && !setEnded && !gameOver
@@ -572,5 +585,5 @@
           setGameDialogOpen(false);
         }}
       /> -->
-    </div>
+	</div>
 {/if}

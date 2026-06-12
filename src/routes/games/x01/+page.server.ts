@@ -1,20 +1,21 @@
-// import {
-// 	deletePlayerPhotoFile,
-// 	savePlayerPhotoFromDataUrl,
-// 	savePlayerPhotoFromUpload
-// } from '$lib/server/player-photo';
-import { addPlayer, getAllPlayers, getPlayer, updatePlayer } from '$lib/server/player';
-import { getGameDraft, saveGameDraft } from '$lib/server/game';
-import type {
-	ConfigX01,
-	CurrentTurnX01,
-	LegX01,
-	PlayerX01,
-	SetX01,
-	X01Draft
-} from '$lib/types/useX01';
-import { generateUUID } from '$lib/uuid';
+import { getGameDraft, saveGameDraft as persistGameDraft } from '$lib/server/game';
+import type { X01Draft } from '$lib/types/useX01';
 import { updateAppSetting } from '$lib/server/app-settings';
+import { fail } from '@sveltejs/kit';
+
+const parseDraftFromFormData = (formData: FormData): X01Draft | null => {
+	const rawDraft = formData.get('gameDraft');
+
+	if (typeof rawDraft !== 'string') {
+		return null;
+	}
+
+	try {
+		return JSON.parse(rawDraft) as X01Draft;
+	} catch {
+		return null;
+	}
+};
 
 export const load = async () => {
 	const draft = getGameDraft<X01Draft>('x01');
@@ -24,17 +25,28 @@ export const load = async () => {
 export const actions = {
 	startGame: async ({ request }) => {
 		const formData = await request.formData();
-		console.log('Form data received in startGame action:', formData);
-		const gameDraft = JSON.parse(formData.get('gameDraft') as string) as X01Draft;
+		const gameDraft = parseDraftFromFormData(formData);
+
+		if (!gameDraft) {
+			return fail(400, { error: 'Invalid gameDraft payload.' });
+		}
 
 		updateAppSetting('x01_config', gameDraft.config);
-		// void upsertPlayers(game.players.map((p) => p.name)).catch((error) => {
-		// 	console.error('Could not persist players for x01', error);
-		// });
 
-		saveGameDraft('x01', gameDraft satisfies X01Draft);
+		persistGameDraft('x01', gameDraft satisfies X01Draft);
+	},
+	saveGameDraft: async ({ request }) => {
+		const formData = await request.formData();
+		const gameDraft = parseDraftFromFormData(formData);
+
+		if (!gameDraft) {
+			return fail(400, { error: 'Invalid gameDraft payload.' });
+		}
+
+		persistGameDraft('x01', gameDraft);
+		return { success: true };
 	},
 	deleteGameDraft: async () => {
-		saveGameDraft('x01', null);
+		persistGameDraft('x01', null);
 	}
 };
