@@ -22,6 +22,12 @@
 		allowedMultipliers: [1, 2]
 	};
 
+	const MISS_VALUE: ManualScorerValue = {
+		score: 0,
+		label: 'Miss',
+		allowedMultipliers: [1]
+	};
+
 	let selectedMultiplier = $state<2 | 3 | null>(null);
 
 	const currentMultiplier = $derived(selectedMultiplier ?? 1);
@@ -77,7 +83,6 @@
 		throws: ManualThrow[];
 		values: ManualScorerValue[];
 		onThrow: (score: number, multiplier: 1 | 2 | 3) => void;
-		onMiss: () => void;
 		onUndo: () => void;
 		renderThrowValue?: (throwValue: ManualThrow) => number;
 		isError?: boolean;
@@ -93,7 +98,6 @@
 		throws,
 		values,
 		onThrow,
-		onMiss,
 		onUndo,
 		renderThrowValue,
 		isError = false,
@@ -173,7 +177,12 @@
 		>
 			{BULL25_VALUE.label}
 		</Button>
-		<Button variant="destructive" class="h-12" onclick={onMiss} disabled={throwSelectionLocked}>
+		<Button
+			variant="destructive"
+			class="h-12"
+			onclick={() => handleValueThrow(MISS_VALUE)}
+			disabled={throwSelectionLocked}
+		>
 			<CircleX />
 		</Button>
 		<Button class="h-12" onclick={onUndo}>

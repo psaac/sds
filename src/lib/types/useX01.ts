@@ -43,19 +43,6 @@ export type SetX01 = {
 	legs: LegX01[];
 };
 
-export type UndoSnapshotX01 = {
-	players: PlayerX01[];
-	currentTurn: CurrentTurnX01;
-	currentScore: number;
-	gameOver: boolean;
-	legEnded: boolean;
-	setEnded: boolean;
-	busted: boolean;
-	currentLeg: LegX01;
-	currentSet: SetX01;
-	sets: SetX01[];
-};
-
 export type GoalOption = 301 | 501 | 701 | 1001;
 
 export const GOAL_OPTIONS = [301, 501, 701, 1001] as const satisfies readonly GoalOption[];

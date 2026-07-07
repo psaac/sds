@@ -7,6 +7,7 @@ import Webcam from './Webcam.svelte';
 import PlayerManager from './PlayerManager.svelte';
 import Divider from './Divider.svelte';
 import ManualScorer from './ManualScorer.svelte';
+import GameStatSection from './GameStatSection.svelte';
 
 export {
 	Header,
@@ -17,5 +18,6 @@ export {
 	Webcam,
 	PlayerManager,
 	Divider,
-	ManualScorer
+	ManualScorer,
+	GameStatSection
 };

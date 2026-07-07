@@ -16,16 +16,14 @@
 		type LegX01,
 		type PlayerX01,
 		type SetX01,
-		type UndoSnapshotX01,
 		GOAL_OPTIONS,
 		isSelectedGoal,
 		type X01Draft,
-		hasInvalidPlayers
+		hasInvalidPlayers,
+		type ThrowX01
 	} from '$lib/types/useX01';
-	import { PlayerManager } from '$lib/components';
-	import { Calculator, Target } from '@lucide/svelte';
-	import ManualScorer from '$lib/components/ManualScorer.svelte';
-	import Divider from '$lib/components/Divider.svelte';
+	import { PlayerManager, GameStatSection, ManualScorer, Divider } from '$lib/components';
+	import { Calculator, LoaderCircle, Target } from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -53,7 +51,6 @@
 		legs: []
 	});
 	let sets = $state<SetX01[]>([]);
-	let undoSnapshotRef: UndoSnapshotX01 | null = null;
 
 	const currentPlayer = $derived(players.find((p) => p.id === currentTurn.playerId));
 	const currentPlayerPhoto = $derived(
@@ -65,6 +62,7 @@
 	let ready = $state(false);
 	let showResumeBanner = $state(false);
 	let manualScorer = $state(false);
+	let isDeletingDraft = $state(false);
 	let saveDraftFormRef: HTMLFormElement | null = null;
 	let saveDraftPayload = $state('');
 	const draft = $derived(data.draft);
@@ -95,33 +93,8 @@
 		}
 	});
 
-	// function captureUndoSnapshot() {
-	// 	undoSnapshotRef = {
-	// 		players: players.map((p) => ({ ...p })),
-	// 		currentTurn: { ...currentTurn, throws: [...currentTurn.throws] },
-	// 		currentScore,
-	// 		gameOver,
-	// 		legEnded,
-	// 		setEnded,
-	// 		busted,
-	// 		currentLeg: { ...currentLeg },
-	// 		currentSet: { ...currentSet },
-	// 		sets: JSON.parse(JSON.stringify(sets))
-	// 	};
-	// }
-
 	function handleNextPlayer() {
-		// captureUndoSnapshot();
 		const finishedPlayer = players.find((p) => p.id === currentTurn.playerId);
-		// players = players.map((player) =>
-		// 	player.id === currentTurn.playerId
-		// 		? {
-		// 				...player,
-		// 				score: busted ? (finishedPlayer?.score ?? 0) : currentScore
-		// 			}
-		// 		: player
-		// );
-
 		const nextIndex =
 			players.indexOf(players.find((p) => p.id === currentTurn.playerId) as PlayerX01) + 1;
 		const nextPlayer = nextIndex > players.length - 1 ? players[0] : players[nextIndex];
@@ -145,33 +118,11 @@
 		busted = false;
 	}
 
-	// Handle previous player
-	const handleUndoPreviousThrows = () => {
-		const snapshot = undoSnapshotRef;
-
-		if (!snapshot) {
-			return;
-		}
-
-		players = snapshot.players;
-		currentTurn = snapshot.currentTurn;
-		currentScore = snapshot.currentScore;
-		gameOver = snapshot.gameOver;
-		legEnded = snapshot.legEnded;
-		setEnded = snapshot.setEnded;
-		busted = snapshot.busted;
-		currentLeg = snapshot.currentLeg;
-		currentSet = snapshot.currentSet;
-		sets = snapshot.sets;
-		undoSnapshotRef = null;
-	};
-
 	const onThrow = (score: number, multiplier: 1 | 2 | 3) => {
 		if (currentTurn.throws.length >= 3 || busted || currentPlayer?.score === 0) {
 			return;
 		}
 
-		// captureUndoSnapshot();
 		const totalPoints = score * multiplier;
 
 		if (multiplier !== 2 && config.doublein && currentScore === config.goal) {
@@ -263,44 +214,62 @@
 		}
 	};
 
-	const onMiss = () => {
-		if (currentTurn.throws.length >= 3 || busted || currentPlayer?.score === 0) {
+	// Handle previous player
+	const handleUndoPreviousThrows = () => {
+		// Go back using the history of the current leg
+		const previousPlayerHistory = currentLeg.history.filter(
+			(p) => p.playerId !== currentTurn.playerId
+		);
+		if (previousPlayerHistory.length === 0) {
 			return;
 		}
-
-		// captureUndoSnapshot();
-		currentTurn = {
-			...currentTurn,
-			throws: [...currentTurn.throws, { score: 0, multiplier: 1 }]
-		};
+		const lastHistory = previousPlayerHistory.at(-1);
+		if (!lastHistory) {
+			return;
+		}
 	};
 
 	const onUndo = () => {
+		let lastThrow: ThrowX01 | null = null;
 		if (currentTurn.throws.length === 0) {
-			handleUndoPreviousThrows();
-			return;
+			if (currentLeg.history.length > 0) {
+				currentTurn = currentLeg.history.at(-1)! as CurrentTurnX01;
+				// Remove last turn from history
+				currentLeg = {
+					...currentLeg,
+					history: currentLeg.history.slice(0, -1)
+				};
+			}
 		}
 
-		const lastThrow = currentTurn.throws.at(-1);
+		if (currentTurn.throws.length > 0) {
+			lastThrow = currentTurn.throws.at(-1)!;
+		}
 
 		if (!lastThrow) {
 			return;
 		}
 
 		const newCurrentTurnThrows = currentTurn.throws.slice(0, -1);
+		const previousTurnsScore = currentLeg.history
+			.filter((turn) => turn.playerId === currentTurn.playerId)
+			.flatMap((turn) => turn.throws)
+			.reduce((total, throwValue) => total + throwValue.score * throwValue.multiplier, 0);
+		const currentTurnScore = newCurrentTurnThrows.reduce(
+			(total, throwValue) => total + throwValue.score * throwValue.multiplier,
+			0
+		);
 
-		const scoreToRestore =
-			currentScore === config.goal ? 0 : lastThrow.multiplier * lastThrow.score;
-		const newCurrentScore = currentScore + scoreToRestore;
-		currentScore = newCurrentScore;
+		// Recalculate the player's score from the leg history and the current turn, then remove the undone throw.
+		currentScore = config.goal - previousTurnsScore - currentTurnScore;
 		currentTurn = {
 			playerId: currentTurn.playerId,
-			score: newCurrentScore,
+			score: currentScore,
 			throws: newCurrentTurnThrows
 		};
 		// update current player score
 		players = players.map((player) =>
-			player.id === currentTurn.playerId ? { ...player, score: newCurrentScore } : player
+			player.id === currentTurn.playerId ? { ...player, score: currentScore } : player
 		);
 
 		busted = false;
@@ -378,6 +347,13 @@
 		formData.set('gameDraft', JSON.stringify(getGameDraft(startedAt, readyPlayers, currentTurn)));
 	};
 
+	const handleDeleteGameDraft: SubmitFunction = () => {
+		isDeletingDraft = true;
+		return async ({ update }) => {
+			await update();
+		};
+	};
+
 	const saveGameDraft = async () => {
 		saveDraftPayload = JSON.stringify(getGameDraft(gameStartedAtRef, players, currentTurn));
 		await tick();
@@ -410,8 +386,18 @@
 				>
 					Resume
 				</Button>
-				<form action="?/deleteGameDraft" method="POST" class="w-full">
-					<Button variant="secondary" type="submit">New Game</Button>
+				<form
+					action="?/deleteGameDraft"
+					method="POST"
+					class="w-full"
+					use:enhance={handleDeleteGameDraft}
+				>
+					<Button variant="secondary" type="submit" disabled={isDeletingDraft}>
+						{#if isDeletingDraft}
+							<LoaderCircle class="mr-2 size-4 animate-spin" />
+						{/if}
+						New Game
+					</Button>
 				</form>
 			</div>
 		</div>
@@ -540,7 +526,6 @@
 					label: String(index + 1)
 				}))}
 				{onThrow}
-				{onMiss}
 				{onUndo}
 				isError={busted}
 				throwSelectionLocked={busted ||
@@ -552,7 +537,7 @@
 			<!-- <X01BoardScorer {game} {config} /> -->
 		{/if}
 		<Divider class="my-2" />
-		<!-- <GameStatSection {sets} {currentLeg} {players} {currentSet} {config} {currentTurn} /> -->
+		<GameStatSection {sets} {players} {currentSet} {currentLeg} {config} {currentTurn} />
 		<!-- 
 		<LegOverDialog
         open={
