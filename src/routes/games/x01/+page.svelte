@@ -474,7 +474,7 @@
 	{/if}
 {:else}
 	<!-- Game in progress UI goes here -->
-	<div class="flex w-full flex-col gap-2 px-2 md:m-auto md:h-full">
+	<div class="flex w-full flex-col gap-2 md:m-auto md:h-full">
 		<div class="flex flex-row justify-between md:m-auto md:w-2/3 md:flex-row md:px-4">
 			<div class="turn-strip flex w-full flex-row justify-between md:m-auto md:flex-row">
 				<div class="flex items-center gap-2">

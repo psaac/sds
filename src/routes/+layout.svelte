@@ -4,6 +4,7 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Header, Footer } from '$lib/components';
 	import { SDSLogo } from '$lib/assets';
+	import { page } from '$app/state';
 
 	let { children } = $props();
 	let currentIcon = $state(SDSLogo);
@@ -11,6 +12,6 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <ModeWatcher />
-<Header icon={currentIcon} />
+<Header icon={currentIcon} title={page.data.title} />
 {@render children()}
 <Footer />

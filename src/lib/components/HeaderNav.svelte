@@ -9,7 +9,7 @@
 	<h1 class="m-0 text-3xl leading-tight font-bold sm:text-5xl">
 		{title}
 	</h1>
+	{#if desc}
+		<p class="w-full text-left text-muted-foreground">{desc}</p>
+	{/if}
 </header>
-{#if desc}
-	<p class="w-full text-left text-muted-foreground">{desc}</p>
-{/if}

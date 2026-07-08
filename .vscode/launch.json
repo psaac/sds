@@ -9,15 +9,21 @@
 			"type": "node-terminal",
 			"request": "launch",
 			"preLaunchTask": "drizzle:generate",
-			"command": "npm run dev -- --open"
+			"command": "npm run dev --"
 		},
 		{
 			"name": "Frontend (Chrome)",
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "launch",
 			"url": "http://localhost:5173",
 			"webRoot": "${workspaceFolder}/src",
 			"sourceMaps": true
+		}
+	],
+	"compounds": [
+		{
+			"name": "Frontend + Chrome",
+			"configurations": ["Frontend", "Frontend (Chrome)"]
 		}
 	]
 }
